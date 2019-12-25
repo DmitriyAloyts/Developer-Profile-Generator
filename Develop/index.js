@@ -4,14 +4,8 @@ const util = require("util");
 const generateHTML = require("./generateHTML.js");
 const writeFileAsync = util.promisify(fs.writeFile);
 const axios = require("axios");
-const PDFDocument = require('pdfkit');
-
-// Create a document
-const doc = new PDFDocument;
-
-// Pipe its output somewhere, like to a file or HTTP response
-// See below for browser usage
-doc.pipe(fs.createWriteStream('output.pdf'));
+// var pdf = require('html-pdf');
+const puppeteer = require('puppeteer');
 
 function promptUser() {
     return inquirer.prompt(questions);
@@ -39,29 +33,29 @@ async function init() {
     console.log("hi")
     try {
         const answers = await promptUser();
-
+        console.log("answers: " + answers.color + answers.github);
         const { data } = await axios.get(
-            `https://api.github.com/users/${answers.github}/repos?per_page=100`);
-        console.log(data[0]);
-        // Add an image, constrain it to a given size, and center it vertically and horizontally
-        // doc.image(data[0].avatar_url, {
-        //     fit: [250, 300],
-        //     align: 'center',
-        //     valign: 'center'
-        // });
-        // Add some text with annotations
-        doc.addPage()
-            .fillColor("blue")
-            .text('Here is a link!', 100, 100)
-            .underline(100, 100, 160, 27, { color: "#0000FF" })
-            .link(100, 100, 160, 27, data[0].owner.html_url);
+            `https://api.github.com/users/${answers.github}`);
+        // console.log(data);
 
-        // Finalize PDF file
-        doc.end();
+        const html = generateHTML.html(answers, data);
+        await writeFileAsync("profile.html", html);
 
-        const html = generateHTML.html(answers);
+        const options = { format: 'Letter' };
 
-        await writeFileAsync("index.html", html);
+        const browser = await puppeteer.launch();
+        const page = await browser.newPage();
+        
+        // await page.goto('https://news.ycombinator.com', { waitUntil: 'networkidle2' });
+        await page.setContent(html);
+
+        await page.pdf({ path: 'profile.pdf', format: 'A4' });
+
+        await browser.close();
+        // pdf.create(html, options).toFile('./profile.pdf', function(err, res) {
+        //     if (err) return console.log(err);
+        //     console.log(res); 
+        //   });
 
         console.log("Successfully wrote to index.html");
     } catch (err) {
